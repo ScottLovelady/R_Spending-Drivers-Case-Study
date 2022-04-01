@@ -1,0 +1,124 @@
+---
+title: "Spending Drivers Case Study"
+author: "Scott Lovelady"
+date: "10/24/21"
+output: 
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+```
+
+## Load packages and create empty data frame
+
+```{r}
+library(tidyverse)
+v <- read_csv("velo.csv")
+
+```
+
+Manually change the factor levels to ensure that the coefficient is positive.
+
+```{r}
+
+v <- v %>% 
+  mutate(checkout_system = factor(checkout_system, 
+                                  levels = c("old", "new"))) # or
+
+# v$checkout_system <- factor(v$checkout_system, levels = c("old", "new"))
+
+```
+
+
+
+```{r}
+# T-test comparing old and new systems
+t.test(filter(v, checkout_system == "new")$spent, 
+       filter(v, checkout_system == "old")$spent)
+
+# T-test comparing old and new systems for mobile users
+t.test(filter(v, checkout_system == "new" & device == "mobile")$spent, 
+       filter(v, checkout_system == "old" & device == "mobile")$spent)
+
+```
+
+### Simple Linear Regression Analysis
+
+
+```{r}
+# spent as explained by checkout system
+lm(spent ~ checkout_system, v) %>%
+  summary
+
+```
+
+> 1. Average spend for old checkout system = 1956.39. Average spend for new checkout system = 1971.25
+
+> 2. The difference between spend for the old and new systems is 14.86. The difference is not statistically significant at p < 0.05.
+
+> 3. The numerical results are the same as the one from the t-test.
+
+
+### Filtering by Mobile Customers
+
+Fit a simple linear regression with `spent` as the target variable and `checkout_system` as the predictor, but include only customers who were using a mobile device.
+
+```{r}
+# spent as explained by checkout_system for mobile users
+lm(spent ~ checkout_system, filter(v, device == 'mobile')) %>%
+  summary
+
+```
+
+> 1. The difference in mobile customer spending between the new and old systems is $35.19.
+
+> 2. The difference is statistically significant at p < 0.05.
+
+> 3. The difference is larger for mobile users than for all users ($35.19 and $14.86, respectively). Additionally, the results are statistically significant for mobile users (t-value of 2.177), whereas the results for all users are not statistically significant (t-value of 1.334)
+
+
+###  Confidence Interval
+
+95% confidence interval for the `checkout_system` coefficient using 1.96 as the critical value. 
+
+```{r}
+# x + or - [critical value] * [standard error]
+lower_bound <- 35.19 - 1.96 * 16.16
+upper_bound <- 35.19 + 1.96 * 16.16
+lower_bound
+upper_bound
+
+```
+
+> The confidence interval states that there is a 95% likelihood that the new checkout system caused an increase in the average amount spent somewhere in the range of $3.52 to $66.86. 
+
+### Revenue Projections
+
+Best and worst case revenue projections for the new checkout system.  Assume 10,000 mobile users in a given month and use revenue under the old system as the baseline. 
+
+```{r}
+mobile_users <- 10000
+old_average <- 1931.69
+# annual minimum new revenue
+lower_bound_new_revenue <- (lower_bound + old_average) * mobile_users * 12
+# annual maximum new revenue
+upper_bound_new_revenue <- (upper_bound + old_average) * mobile_users * 12
+# annual old revenue
+old_revenue <- mobile_users * old_average * 12
+lower_bound_new_revenue
+upper_bound_new_revenue
+old_revenue
+# annual maximum revenue increase
+upper_bound_new_revenue - old_revenue
+# annual minimum revenue increase
+lower_bound_new_revenue - old_revenue
+```
+
+> The company will likely experience an increase in annual revenue somewhere between $421,968 and $8,023,632. Based on this, the coefficient estimate for 'checkout_system' has practical value.
+
+### Recommendation
+
+> Recommend that management implement the new checkout system. My statistically significant linear regression model estimates that the new checkout system increased the average amount spent by mobile customers by $35.19. Drilling down, I am 95% confident that the new checkout system will increase a mobile customer's average amount spent by anywhere from $3.52 to $66.86. Assuming 10,000 mobile customers per month, this equates to an increase in annual revenue anywhere from $421,968 to $8,023,632. Even based on the likely worst-case scenario, velo.com's upside potential is significant, especially considering that the new checkout system has already been created, so any implementation costs will be minimal.
